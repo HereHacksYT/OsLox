@@ -2,8 +2,9 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const app = express();
+const path = require('path');
 
+const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
@@ -13,94 +14,105 @@ const io = socketIo(server, {
   cors: { origin: "*" }
 });
 
-// ===== RAM'DE TUTULAN VERİLER =====
-const pendingRequests = {}; // { 'mehmet': ['ahmet', 'ali'], ... }
+// ===== OYUN ODALARI =====
+const rooms = {}; // roomId: { players: { socketId: { username, avatar, position } }, messages: [] }
 
-// ===== SOCKET OLAYLARI =====
 io.on('connection', (socket) => {
   console.log('🔗 Yeni bağlantı:', socket.id);
 
-  // Kullanıcı giriş yapınca odasına ekle
-  socket.on('register', (username) => {
-    socket.username = username;
-    socket.join(`user_${username}`);
-    console.log(`👤 ${username} giriş yaptı`);
+  // ===== OYUN ODASI YÖNETİMİ =====
+  socket.on('join_room', ({ roomId, username, avatar }) => {
+    socket.join(roomId);
+    if (!rooms[roomId]) {
+      rooms[roomId] = { players: {}, messages: [] };
+    }
+    rooms[roomId].players[socket.id] = {
+      username,
+      avatar: avatar || { shirt: '#e94560', pants: '#2d3436', hat: 'none' },
+      position: { x: 0, y: 0, z: 0 }
+    };
     
-    // Bekleyen istekleri gönder
-    if (pendingRequests[username]) {
-      socket.emit('pending_requests', pendingRequests[username]);
+    // Odadaki diğer oyuncuları yeni gelen oyuncuya gönder
+    const otherPlayers = Object.entries(rooms[roomId].players)
+      .filter(([id]) => id !== socket.id)
+      .map(([id, data]) => ({ id, ...data }));
+    socket.emit('current_players', otherPlayers);
+    
+    // Yeni oyuncuyu herkese bildir
+    socket.to(roomId).emit('player_joined', {
+      id: socket.id,
+      username,
+      avatar,
+      position: { x: 0, y: 0, z: 0 }
+    });
+    
+    // Sohbet geçmişini gönder
+    socket.emit('chat_history', rooms[roomId].messages);
+    
+    console.log(`👤 ${username} odaya katıldı: ${roomId}`);
+  });
+
+  // ===== OYUNCU HAREKET =====
+  socket.on('player_move', ({ roomId, position }) => {
+    if (rooms[roomId] && rooms[roomId].players[socket.id]) {
+      rooms[roomId].players[socket.id].position = position;
+      socket.to(roomId).emit('player_moved', {
+        id: socket.id,
+        position
+      });
     }
   });
 
-  // Arkadaş isteği gönder
-  socket.on('send_request', ({ from, to }) => {
-    if (from === to) {
-      socket.emit('error', 'Kendine istek gönderemezsin');
-      return;
+  // ===== SOYBET =====
+  socket.on('chat_message', ({ roomId, message }) => {
+    if (rooms[roomId]) {
+      const username = rooms[roomId].players[socket.id]?.username || 'Bilinmeyen';
+      const msgData = { username, message, time: new Date().toISOString() };
+      rooms[roomId].messages.push(msgData);
+      io.to(roomId).emit('new_chat_message', msgData);
     }
-    
-    // Daha önce istek gönderilmiş mi kontrol et
-    if (pendingRequests[to] && pendingRequests[to].includes(from)) {
-      socket.emit('error', 'Zaten istek gönderilmiş');
-      return;
-    }
-    
-    // İsteği ekle
-    if (!pendingRequests[to]) pendingRequests[to] = [];
-    pendingRequests[to].push(from);
-    
-    console.log(`📨 ${from} → ${to} istek gönderdi`);
-    
-    // Karşı tarafa bildirim gönder (online ise)
-    io.to(`user_${to}`).emit('new_request', { from });
-    socket.emit('request_sent', { to });
   });
 
-  // İsteği kabul et
-  socket.on('accept_request', ({ from, to }) => {
-    // İsteği RAM'den sil
-    if (pendingRequests[to]) {
-      pendingRequests[to] = pendingRequests[to].filter(f => f !== from);
-      if (pendingRequests[to].length === 0) delete pendingRequests[to];
-    }
-    
-    console.log(`✅ ${to} → ${from} isteği kabul etti`);
-    
-    // HER İKİ TARAFA DA "arkadaş oldunuz" mesajı gönder
-    io.to(`user_${from}`).emit('friend_accepted', { friend: to });
-    io.to(`user_${to}`).emit('friend_accepted', { friend: from });
-  });
-
-  // İsteği reddet
-  socket.on('reject_request', ({ from, to }) => {
-    if (pendingRequests[to]) {
-      pendingRequests[to] = pendingRequests[to].filter(f => f !== from);
-      if (pendingRequests[to].length === 0) delete pendingRequests[to];
-    }
-    console.log(`❌ ${to} → ${from} isteği reddetti`);
-    io.to(`user_${from}`).emit('request_rejected', { by: to });
-  });
-
-  // Bağlantı kesildiğinde
+  // ===== BAĞLANTI KESİLME =====
   socket.on('disconnect', () => {
-    console.log('🔌 Bağlantı kesildi:', socket.id);
+    for (const roomId in rooms) {
+      if (rooms[roomId].players[socket.id]) {
+        const username = rooms[roomId].players[socket.id].username;
+        delete rooms[roomId].players[socket.id];
+        socket.to(roomId).emit('player_left', { id: socket.id });
+        console.log(`👋 ${username} ayrıldı (${roomId})`);
+        
+        // Oda boşsa temizle
+        if (Object.keys(rooms[roomId].players).length === 0) {
+          delete rooms[roomId];
+        }
+        break;
+      }
+    }
   });
 });
 
-// ===== HTTP API (isteğe bağlı, tüm kullanıcıları listele) =====
-app.get('/api/users', (req, res) => {
-  // Aktif kullanıcıları socket'lerden al
-  const users = [];
-  for (const [_, socket] of io.sockets.sockets) {
-    if (socket.username && !users.includes(socket.username)) {
-      users.push(socket.username);
+// ===== OYUN LİSTESİ API =====
+app.get('/api/games', (req, res) => {
+  res.json([
+    { 
+      id: 'game1', 
+      name: 'Savaş Arenası', 
+      description: 'Arkadaşlarınla savaş!',
+      thumbnail: '/assets/thumbnails/game1.jpg',
+      scene: 'arena'
+    },
+    { 
+      id: 'game2', 
+      name: 'Parkur Yarışı', 
+      description: 'Engelleri aş, birinci ol!',
+      thumbnail: '/assets/thumbnails/game2.jpg',
+      scene: 'parkour'
     }
-  }
-  res.json(users);
+  ]);
 });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Sunucu ${PORT} portunda çalışıyor`);
-  console.log(`📡 Socket.io hazır`);
+  console.log(`🚀 OsLox sunucusu ${PORT} portunda çalışıyor`);
 });
