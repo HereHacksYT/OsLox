@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OsLox</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+    }
+    button {
+      touch-action: manipulation;
+      cursor: pointer;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background: #e94560;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      transition: 0.2s;
+    }
+    button:active { transform: scale(0.95); }
+    input, select {
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    #login-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 20px;
+      background: linear-gradient(135deg, #16213e, #0f3460);
+    }
+    #login-screen h1 {
+      font-size: 4rem;
+      color: #e94560;
+      text-shadow: 0 0 30px rgba(233, 69, 96, 0.5);
+    }
+    #login-screen input { width: 80%; max-width: 300px; text-align: center; }
+    #login-screen button { width: 80%; max-width: 300px; }
+    #login-error { color: #ff6b6b; min-height: 30px; }
+
+    #main-panel {
+      display: none;
+      height: 100vh;
+      flex-direction: column;
+      background: #1a1a2e;
+    }
+
+    #top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 15px;
+      background: #16213e;
+      border-bottom: 2px solid #e94560;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    #top-bar .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #top-bar .user-info img {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid #e94560;
+      object-fit: cover;
+    }
+    #top-bar .user-info span { font-weight: bold; font-size: 1.2rem; }
+    #top-bar .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    #top-bar .actions button { padding: 6px 12px; font-size: 14px; }
+    .btn-logout { background: #c0392b; }
+    .btn-costume { background: #2ecc71; }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-bottom: 100px;
+    }
+
+    .section {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 15px;
+      border: 1px solid #2a2a4a;
+    }
+    .section h3 { color: #e94560; margin-bottom: 10px; font-size: 1.1rem; }
+    .section h4 { color: #aaa; margin-top: 10px; font-size: 0.9rem; }
+
+    .friend-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      list-style: none;
+    }
+    .friend-list li {
+      background: #2a2a4a;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .friend-list li .remove-friend {
+      background: none;
+      border: none;
+      color: #ff6b6b;
+      font-size: 14px;
+      padding: 0 5px;
+      cursor: pointer;
+    }
+
+    .request-item {
+      background: #2a2a4a;
+      padding: 10px 15px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .request-item .btn-group { display: flex; gap: 8px; }
+    .request-item .btn-group button { padding: 4px 12px; font-size: 12px; }
+    .btn-accept { background: #2ecc71; }
+    .btn-reject { background: #e74c3c; }
+
+    #game-area {
+      position: relative;
+      background: #0f3460;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 4/3;
+      touch-action: none;
+    }
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    #game-controls {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    #game-controls button { padding: 12px 30px; font-size: 18px; min-width: 100px; }
+    .btn-start { background: #2ecc71; }
+    .btn-stop { background: #e74c3c; }
+    #score-display { text-align: center; font-size: 1.5rem; font-weight: bold; color: #f1c40f; }
+
+    #joystick-container {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.1);
+      border: 3px solid rgba(255,255,255,0.3);
+      touch-action: none;
+      display: none;
+      z-index: 100;
+    }
+    #joystick-knob {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #e94560;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      touch-action: none;
+      box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+    }
+
+    @media (max-width: 768px) {
+      #joystick-container { display: block; }
+      #game-controls button { padding: 8px 16px; font-size: 14px; }
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: #16213e;
+      padding: 30px;
+      border-radius: 16px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    .modal-content .avatar-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    .modal-content .avatar-options img {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      cursor: pointer;
+      transition: 0.2s;
+      object-fit: cover;
+    }
+    .modal-content .avatar-options img.selected {
+      border-color: #e94560;
+      transform: scale(1.1);
+    }
+    .modal-content .btn-close-modal { background: #555; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<!-- GİRİŞ -->
+<div id="login-screen">
+  <h1>OsLox</h1>
+  <input type="text" id="login-username" placeholder="Kullanıcı adınız">
+  <button id="login-btn">Giriş Yap</button>
+  <div id="login-error"></div>
+  <small style="color:#888;">İstediğiniz ismi seçin</small>
+</div>
+
+<!-- ANA PANEL -->
+<div id="main-panel">
+  <div id="top-bar">
+    <div class="user-info">
+      <img id="profile-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=default">
+      <span id="profile-username">İsim</span>
+    </div>
+    <div class="actions">
+      <button class="btn-costume" id="costume-btn">👕 Kostüm</button>
+      <button class="btn-logout" id="logout-btn">🚪 Çıkış</button>
+    </div>
+  </div>
+
+  <div id="content">
+    <!-- ARKADAŞLAR -->
+    <div class="section">
+      <h3>👥 Arkadaşlarım</h3>
+      <ul class="friend-list" id="friends-list"></ul>
+      
+      <h4>➕ Arkadaş Ekle</h4>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:5px;">
+        <input type="text" id="friend-input" placeholder="Kullanıcı adı" style="flex:1; min-width:150px;">
+        <button id="add-friend-btn">İstek Gönder</button>
+      </div>
+      
+      <h4>📩 Gelen İstekler</h4>
+      <div id="requests-container"></div>
+    </div>
+
+    <!-- OYUN -->
+    <div class="section">
+      <h3>🎮 Oyun</h3>
+      <div id="game-area">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+      </div>
+      <div id="score-display">Skor: 0</div>
+      <div id="game-controls">
+        <button class="btn-start" id="start-game-btn">▶ Başlat</button>
+        <button class="btn-stop" id="stop-game-btn">⏹ Durdur</button>
+      </div>
+    </div>
+
+    <!-- GEÇMİŞ -->
+    <div class="section">
+      <h3>📜 Oyun Geçmişim</h3>
+      <ul class="friend-list" id="history-list" style="flex-direction:column; gap:4px;"></ul>
+    </div>
+  </div>
+
+  <!-- JOYSTICK -->
+  <div id="joystick-container">
+    <div id="joystick-knob"></div>
+  </div>
+</div>
+
+<!-- KOSTÜM MODAL -->
+<div class="modal" id="costume-modal">
+  <div class="modal-content">
+    <h3>👕 Kostüm Seç</h3>
+    <div class="avatar-options" id="avatar-options"></div>
+    <button class="btn-close-modal" id="close-modal-btn">Kapat</button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  JAVASCRIPT - SOCKET.IO İLE ARKADAŞ SİSTEMİ
+// ============================================================
+
+const socket = io();
+
+// ---------- GLOBAL ----------
+let currentUser = localStorage.getItem('oslox_user') || null;
+let friends = JSON.parse(localStorage.getItem('oslox_friends') || '[]');
+let pendingRequests = [];
+
+// ---------- DOM REFS ----------
+const loginScreen = document.getElementById('login-screen');
+const mainPanel = document.getElementById('main-panel');
+const loginUsername = document.getElementById('login-username');
+const loginBtn = document.getElementById('login-btn');
+const loginError = document.getElementById('login-error');
+const profileUsername = document.getElementById('profile-username');
+const profileAvatar = document.getElementById('profile-avatar');
+const friendsList = document.getElementById('friends-list');
+const friendInput = document.getElementById('friend-input');
+const addFriendBtn = document.getElementById('add-friend-btn');
+const requestsContainer = document.getElementById('requests-container');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreDisplay = document.getElementById('score-display');
+const startGameBtn = document.getElementById('start-game-btn');
+const stopGameBtn = document.getElementById('stop-game-btn');
+const historyList = document.getElementById('history-list');
+const logoutBtn = document.getElementById('logout-btn');
+const costumeBtn = document.getElementById('costume-btn');
+const costumeModal = document.getElementById('costume-modal');
+const avatarOptions = document.getElementById('avatar-options');
+const closeModalBtn = document.getElementById('close-modal-btn');
+
+// AVATAR
+const AVATARS = [
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=default',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=neo',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=robot',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=cat',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=dog',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=alien',
+];
+let currentAvatar = localStorage.getItem('oslox_avatar') || AVATARS[0];
+
+// OYUN
+let gameRunning = false;
+let gameScore = 0;
+let gameInterval = null;
+let player = { x: 50, y: 250, vy: 0, width: 30, height: 30 };
+const GRAVITY = 0.6;
+const JUMP_POWER = -12;
+let keys = { left: false, right: false };
+
+// ---------- SOCKET OLAYLARI ----------
+socket.on('connect', () => {
+  console.log('✅ Socket bağlandı');
+  if (currentUser) {
+    socket.emit('register', currentUser);
+  }
+});
+
+socket.on('pending_requests', (requests) => {
+  pendingRequests = requests;
+  renderRequests();
+});
+
+socket.on('new_request', ({ from }) => {
+  pendingRequests.push(from);
+  renderRequests();
+  // Bildirim
+  alert(`📨 ${from} size arkadaşlık isteği gönderdi!`);
+});
+
+socket.on('friend_accepted', ({ friend }) => {
+  // Arkadaşı localStorage'a ekle
+  if (!friends.includes(friend)) {
+    friends.push(friend);
+    saveFriends();
+    alert(`🎉 ${friend} ile arkadaş oldunuz!`);
+  }
+});
+
+socket.on('request_rejected', ({ by }) => {
+  alert(`❌ ${by} isteğinizi reddetti`);
+});
+
+socket.on('request_sent', ({ to }) => {
+  alert(`✅ ${to} adlı kullanıcıya istek gönderildi`);
+});
+
+socket.on('error', (msg) => {
+  alert('❌ ' + msg);
+});
+
+// ---------- GİRİŞ / ÇIKIŞ ----------
+function login(username) {
+  if (!username.trim()) return showError('Kullanıcı adı girin');
+  
+  currentUser = username;
+  localStorage.setItem('oslox_user', username);
+  
+  // Socket'e kaydol
+  socket.emit('register', username);
+  
+  showMainUI();
+}
+
+function logout() {
+  currentUser = null;
+  localStorage.removeItem('oslox_user');
+  loginScreen.style.display = 'flex';
+  mainPanel.style.display = 'none';
+  if (gameRunning) stopGame();
+  socket.disconnect();
+}
+
+function showError(msg) {
+  loginError.textContent = msg;
+  setTimeout(() => loginError.textContent = '', 3000);
+}
+
+function showMainUI() {
+  loginScreen.style.display = 'none';
+  mainPanel.style.display = 'flex';
+  profileUsername.textContent = currentUser;
+  profileAvatar.src = currentAvatar;
+  renderFriends();
+  renderRequests();
+  loadHistory();
+  resetGame();
+}
+
+// ---------- ARKADAŞ SİSTEMİ ----------
+function saveFriends() {
+  localStorage.setItem('oslox_friends', JSON.stringify(friends));
+  renderFriends();
+}
+
+function renderFriends() {
+  if (!friends.length) {
+    friendsList.innerHTML = '<li style="color:#888;">Henüz arkadaş yok</li>';
+    return;
+  }
+  friendsList.innerHTML = friends.map(f => `
+    <li>
+      ${f}
+      <button class="remove-friend" onclick="removeFriend('${f}')">✕</button>
+    </li>
+  `).join('');
+}
+
+function removeFriend(friendName) {
+  if (!confirm(`${friendName} arkadaşınızdan çıkarmak istediğinizden emin misiniz?`)) return;
+  friends = friends.filter(f => f !== friendName);
+  saveFriends();
+}
+
+function sendFriendRequest() {
+  const to = friendInput.value.trim();
+  if (!to) return alert('Kullanıcı adı girin');
+  if (to === currentUser) return alert('Kendine istek gönderemezsin');
+  if (friends.includes(to)) return alert('Bu kişi zaten arkadaşınız');
+  
+  socket.emit('send_request', { from: currentUser, to });
+  friendInput.value = '';
+}
+
+function renderRequests() {
+  if (!pendingRequests.length) {
+    requestsContainer.innerHTML = '<p style="color:#888;">Gelen istek yok</p>';
+    return;
+  }
+  requestsContainer.innerHTML = pendingRequests.map(from => `
+    <div class="request-item">
+      <span>${from} 👤</span>
+      <div class="btn-group">
+        <button class="btn-accept" onclick="acceptRequest('${from}')">✅ Kabul</button>
+        <button class="btn-reject" onclick="rejectRequest('${from}')">❌ Reddet</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function acceptRequest(from) {
+  socket.emit('accept_request', { from, to: currentUser });
+  // İsteği listeden kaldır
+  pendingRequests = pendingRequests.filter(f => f !== from);
+  renderRequests();
+}
+
+function rejectRequest(from) {
+  socket.emit('reject_request', { from, to: currentUser });
+  pendingRequests = pendingRequests.filter(f => f !== from);
+  renderRequests();
+}
+
+// ---------- OYUN (Aynı) ----------
+function resetGame() {
+  player.x = 50;
+  player.y = 250;
+  player.vy = 0;
+  gameScore = 0;
+  scoreDisplay.textContent = 'Skor: 0';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawPlayer();
+}
+
+function drawPlayer() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#2a2a4a';
+  ctx.fillRect(0, 280, canvas.width, 20);
+  ctx.fillStyle = '#e94560';
+  ctx.fillRect(player.x, player.y, player.width, player.height);
+  ctx.fillStyle = 'white';
+  ctx.fillRect(player.x + 5, player.y + 5, 6, 6);
+  ctx.fillRect(player.x + 19, player.y + 5, 6, 6);
+}
+
+function updateGame() {
+  if (!gameRunning) return;
+  player.vy += GRAVITY;
+  player.y += player.vy;
+  if (player.y >= 250) { player.y = 250; player.vy = 0; }
+  if (keys.left && player.x > 0) player.x -= 4;
+  if (keys.right && player.x < canvas.width - player.width) player.x += 4;
+  gameScore += 1;
+  scoreDisplay.textContent = `Skor: ${gameScore}`;
+  drawPlayer();
+}
+
+function startGame() {
+  if (gameRunning) return;
+  gameRunning = true;
+  resetGame();
+  gameInterval = setInterval(updateGame, 30);
+  document.addEventListener('keydown', keyHandler);
+  document.addEventListener('keyup', keyUpHandler);
+}
+
+function stopGame() {
+  gameRunning = false;
+  if (gameInterval) clearInterval(gameInterval);
+  document.removeEventListener('keydown', keyHandler);
+  document.removeEventListener('keyup', keyUpHandler);
+  saveHistory('Zıplama Oyunu', gameScore);
+}
+
+function keyHandler(e) {
+  if (e.key === ' ' || e.key === 'Space') {
+    e.preventDefault();
+    if (player.y >= 250) player.vy = JUMP_POWER;
+  }
+  if (e.key === 'ArrowLeft') keys.left = true;
+  if (e.key === 'ArrowRight') keys.right = true;
+}
+
+function keyUpHandler(e) {
+  if (e.key === 'ArrowLeft') keys.left = false;
+  if (e.key === 'ArrowRight') keys.right = false;
+}
+
+// ---------- JOYSTICK ----------
+function setupJoystick() {
+  const container = document.getElementById('joystick-container');
+  const knob = document.getElementById('joystick-knob');
+  const radius = 40;
+  let centerX = 70;
+  let centerY = 70;
+  
+  function handleMove(clientX, clientY) {
+    const rect = container.getBoundingClientRect();
+    centerX = rect.width / 2;
+    centerY = rect.height / 2;
+    let x = clientX - rect.left - centerX;
+    let y = clientY - rect.top - centerY;
+    const dist = Math.sqrt(x*x + y*y);
+    if (dist > radius) { x = (x / dist) * radius; y = (y / dist) * radius; }
+    knob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+    const threshold = 15;
+    keys.left = x < -threshold;
+    keys.right = x > threshold;
+    if (y < -threshold && player.y >= 250) {
+      player.vy = JUMP_POWER;
+    }
+  }
+  
+  container.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleMove(touch.clientX, touch.clientY);
+  });
+  container.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleMove(touch.clientX, touch.clientY);
+  });
+  container.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    knob.style.transform = 'translate(-50%, -50%)';
+    keys.left = false;
+    keys.right = false;
+  });
+}
+
+// ---------- GEÇMİŞ ----------
+function saveHistory(gameName, score) {
+  let history = JSON.parse(localStorage.getItem('oslox_history') || '[]');
+  history.push({ game: gameName, score, date: new Date().toISOString() });
+  localStorage.setItem('oslox_history', JSON.stringify(history));
+  loadHistory();
+}
+
+function loadHistory() {
+  const history = JSON.parse(localStorage.getItem('oslox_history') || '[]');
+  historyList.innerHTML = history.length 
+    ? history.slice(-10).reverse().map(h => 
+        `<li style="color:#aaa; font-size:0.9rem;">🎯 ${h.game}: ${h.score} (${new Date(h.date).toLocaleTimeString()})</li>`
+      ).join('')
+    : '<li style="color:#888;">Henüz oyun oynamadın</li>';
+}
+
+// ---------- KOSTÜM ----------
+function openCostumeModal() {
+  avatarOptions.innerHTML = AVATARS.map(url => `
+    <img src="${url}" onclick="selectAvatar('${url}')" class="${currentAvatar === url ? 'selected' : ''}">
+  `).join('');
+  costumeModal.classList.add('active');
+}
+
+function selectAvatar(url) {
+  currentAvatar = url;
+  localStorage.setItem('oslox_avatar', url);
+  profileAvatar.src = url;
+  document.querySelectorAll('#avatar-options img').forEach(img => {
+    img.classList.toggle('selected', img.src === url);
+  });
+}
+
+function closeCostumeModal() {
+  costumeModal.classList.remove('active');
+}
+
+// ---------- EVENT LİSTENERLER ----------
+loginBtn.addEventListener('click', () => login(loginUsername.value));
+loginUsername.addEventListener('keydown', (e) => { if (e.key === 'Enter') login(loginUsername.value); });
+logoutBtn.addEventListener('click', logout);
+addFriendBtn.addEventListener('click', sendFriendRequest);
+friendInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendFriendRequest(); });
+startGameBtn.addEventListener('click', startGame);
+stopGameBtn.addEventListener('click', stopGame);
+costumeBtn.addEventListener('click', openCostumeModal);
+closeModalBtn.addEventListener('click', closeCostumeModal);
+costumeModal.addEventListener('click', (e) => { if (e.target === costumeModal) closeCostumeModal(); });
+
+// ---------- BAŞLAT ----------
+if (currentUser) {
+  showMainUI();
+  socket.emit('register', currentUser);
+}
+
+setupJoystick();
+
+// Yakınlaştırmayı engelle
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('gesturechange', (e) => e.preventDefault());
+canvas.addEventListener('touchstart', (e) => e.preventDefault());
+
+console.log('🚀 OsLox başlatıldı!');
+console.log(`👤 Kullanıcı: ${currentUser || 'Giriş yapılmamış'}`);
+</script>
+</body>
+</html>
