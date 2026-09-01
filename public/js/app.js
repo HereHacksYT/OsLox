@@ -16,8 +16,8 @@ const profileAvatar = document.getElementById('profile-avatar');
 const gameList = document.getElementById('game-list');
 const friendsList = document.getElementById('friends-list');
 const logoutBtn = document.getElementById('logout-btn');
-const costumeBtn = document.getElementById('costume-btn');
-const costumeModal = document.getElementById('costume-modal');
+const characterBtn = document.getElementById('character-btn');
+const characterModal = document.getElementById('character-modal');
 const closeModalBtn = document.getElementById('close-modal-btn');
 const exitGameBtn = document.getElementById('exit-game-btn');
 
@@ -29,12 +29,9 @@ function login(username) {
   loginScreen.style.display = 'none';
   mainPanel.style.display = 'flex';
   profileUsername.textContent = username;
-  // Avatar yükle
-  const avatarData = Avatar.load();
   profileAvatar.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
   loadGames();
   loadFriends();
-  // Socket bağlantısı
   socket = io();
 }
 
@@ -58,7 +55,6 @@ async function loadGames() {
       </div>
     `).join('');
 
-    // Tıklama olayları
     document.querySelectorAll('.game-card').forEach(card => {
       card.addEventListener('click', () => {
         const gameId = card.dataset.id;
@@ -73,7 +69,6 @@ async function loadGames() {
 
 // ===== OYUN BAŞLAT =====
 function startGame(gameId, scene) {
-  // Yükleme ekranını göster
   const loadingOverlay = document.getElementById('loading-overlay');
   const progress = document.getElementById('loading-progress');
   const loadingText = document.getElementById('loading-text');
@@ -86,7 +81,6 @@ function startGame(gameId, scene) {
     if (p >= 100) {
       p = 100;
       clearInterval(interval);
-      // Oyunu başlat
       initGame(gameId, scene);
       loadingOverlay.style.display = 'none';
     }
@@ -94,31 +88,26 @@ function startGame(gameId, scene) {
     loadingText.textContent = `Yükleniyor %${Math.floor(p)}`;
   }, 200);
 
-  // Oyun ekranını göster
   mainPanel.style.display = 'none';
   gameScreen.style.display = 'flex';
 }
 
 function initGame(gameId, scene) {
   const container = document.getElementById('game-container');
-  const roomId = gameId + '_' + Date.now(); // benzersiz oda
+  const roomId = gameId + '_' + Date.now();
   
-  // Kostümü al
-  const avatar = Avatar.load();
+  // Seçili karakter
+  const character = Character.getCurrent();
   
-  // Socket odaya katıl
-  socket.emit('join_room', { roomId, username: currentUser, avatar });
+  socket.emit('join_room', { roomId, username: currentUser, characterId: character.id });
   
-  // Sohbet başlat
   Chat.init(socket, roomId);
   
-  // 3D oyun başlat
-  gameInstance = new Game3D(container, roomId, socket, currentUser, avatar);
+  gameInstance = new Game3D(container, roomId, socket, currentUser, character.id);
   gameInstance.init();
   
   currentRoom = roomId;
   
-  // Çıkış butonu
   exitGameBtn.onclick = () => {
     if (confirm('Oyundan çıkmak istediğinize emin misiniz?')) {
       exitGame();
@@ -147,15 +136,16 @@ function loadFriends() {
     : '<li style="color:#888;">Henüz arkadaş yok</li>';
 }
 
-// ===== KOSTÜM MODAL =====
-costumeBtn.addEventListener('click', () => {
-  costumeModal.classList.add('active');
+// ===== KARAKTER MODAL =====
+characterBtn.addEventListener('click', () => {
+  Character.loadModal();
+  characterModal.classList.add('active');
 });
 closeModalBtn.addEventListener('click', () => {
-  costumeModal.classList.remove('active');
+  characterModal.classList.remove('active');
 });
-costumeModal.addEventListener('click', (e) => {
-  if (e.target === costumeModal) costumeModal.classList.remove('active');
+characterModal.addEventListener('click', (e) => {
+  if (e.target === characterModal) characterModal.classList.remove('active');
 });
 
 // ===== ÇIKIŞ =====
