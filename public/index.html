@@ -7,11 +7,23 @@
   <link rel="stylesheet" href="/css/style.css">
   <!-- Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- GLTFLoader (model yükleme) -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <!-- Socket.io -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
-  <!-- GİRİŞ EKRANI -->
+
+  <!-- ===== MOBİL YATAY UYARI ===== -->
+  <div id="rotate-warning" style="display:none;">
+    <div class="warning-content">
+      <span class="icon">📱</span>
+      <h2>Lütfen telefonu yatay çevir!</h2>
+      <p>Oyunu yatay modda oynayabilirsiniz.</p>
+    </div>
+  </div>
+
+  <!-- ===== GİRİŞ EKRANI ===== -->
   <div id="login-screen">
     <h1>OsLox</h1>
     <input type="text" id="login-username" placeholder="Kullanıcı adınız">
@@ -19,21 +31,18 @@
     <div id="login-error"></div>
   </div>
 
-  <!-- ANA PANEL -->
+  <!-- ===== ANA PANEL ===== -->
   <div id="main-panel">
-    <!-- Üst Bar -->
     <div id="top-bar">
       <div class="user-info">
         <img id="profile-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=default">
         <span id="profile-username">İsim</span>
       </div>
       <div class="actions">
-        <button class="btn-costume" id="costume-btn">👕 Kostüm</button>
+        <button class="btn-costume" id="character-btn">👤 Karakter</button>
         <button class="btn-logout" id="logout-btn">🚪 Çıkış</button>
       </div>
     </div>
-
-    <!-- İçerik (Oyun Listesi) -->
     <div id="content">
       <div class="section">
         <h3>🎮 Oyunlar</h3>
@@ -46,14 +55,12 @@
     </div>
   </div>
 
-  <!-- OYUN EKRANI (3D) -->
+  <!-- ===== OYUN EKRANI (3D) ===== -->
   <div id="game-screen" style="display:none;">
-    <!-- Sol üst kontroller -->
     <div id="game-ui">
       <button id="exit-game-btn">✕ Çık</button>
       <button id="chat-toggle-btn">💬 Sohbet</button>
     </div>
-    <!-- Sohbet Paneli -->
     <div id="chat-panel" style="display:none;">
       <div id="chat-messages"></div>
       <div id="chat-input-area">
@@ -61,36 +68,25 @@
         <button id="chat-send-btn">Gönder</button>
       </div>
     </div>
-    <!-- 3D Canvas buraya eklenecek -->
     <div id="game-container"></div>
     <!-- Yükleme Barı -->
     <div id="loading-overlay">
       <div class="loading-bar"><div id="loading-progress" style="width:0%;"></div></div>
       <p id="loading-text">Oyun yükleniyor...</p>
     </div>
+    <!-- JOYSTICK (mobil) -->
+    <div id="joystick-container">
+      <div id="joystick-knob"></div>
+    </div>
   </div>
 
-  <!-- KOSTÜM MODAL -->
-  <div class="modal" id="costume-modal">
+  <!-- ===== KARAKTER SEÇİM MODALI ===== -->
+  <div class="modal" id="character-modal">
     <div class="modal-content">
-      <h3>👕 Kostüm Seç</h3>
-      <div class="costume-section">
-        <label>Tişört Rengi</label>
-        <input type="color" id="shirt-color" value="#e94560">
+      <h3>👤 Karakter Seç</h3>
+      <div class="character-options" id="character-options">
+        <!-- JS ile doldurulacak -->
       </div>
-      <div class="costume-section">
-        <label>Pantolon Rengi</label>
-        <input type="color" id="pants-color" value="#2d3436">
-      </div>
-      <div class="costume-section">
-        <label>Şapka</label>
-        <select id="hat-select">
-          <option value="none">Yok</option>
-          <option value="baseball">Beyzbol Şapkası</option>
-          <option value="tophat">Silindir Şapka</option>
-        </select>
-      </div>
-      <button id="save-costume-btn">Kaydet</button>
       <button class="btn-close-modal" id="close-modal-btn">Kapat</button>
     </div>
   </div>
