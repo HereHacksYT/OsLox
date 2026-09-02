@@ -11,7 +11,7 @@
 </head>
 <body>
 
-  <!-- ===== MOBİL YATAY UYARI (SADECE OYUN AÇIKKEN) ===== -->
+  <!-- ===== MOBİL YATAY UYARI ===== -->
   <div id="rotate-warning" style="display:none;">
     <div class="warning-content">
       <span class="icon">📱</span>
@@ -23,13 +23,13 @@
   <!-- ===== GİRİŞ EKRANI ===== -->
   <div id="login-screen">
     <h1>OsLox</h1>
-    <input type="text" id="login-username" placeholder="Kullanıanelcı adınız">
+    <input type="text" id="login-username" placeholder="Kullanıcı adınız">
     <button id="login-btn">Giriş Yap</button>
     <div id="login-error"></div>
- " </div>
+  </div>
 
   <!-- ===== ANA PANEL ===== -->
-  <div id="main-p style="display:none;">
+  <div id="main-panel" style="display:none;">
     <div id="top-bar">
       <div class="user-info">
         <img id="profile-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=default">
@@ -41,10 +41,15 @@
       </div>
     </div>
     <div id="content">
+      <!-- =============================================== -->
+      <!-- SADECE BURASI DEĞİŞTİ - OYUN LİSTESİ -->
+      <!-- =============================================== -->
       <div class="section">
         <h3>🎮 Oyunlar</h3>
         <div id="game-list"></div>
       </div>
+      <!-- =============================================== -->
+      
       <div class="section">
         <h3>👥 Arkadaşlarım</h3>
         <ul class="friend-list" id="friends-list"></ul>
@@ -71,12 +76,10 @@
       </div>
     </div>
     <div id="game-container"></div>
-    <!-- Yükleme (basit) -->
     <div id="loading-overlay">
       <p>🎮 Oyun yükleniyor...</p>
       <div class="loading-bar"><div id="loading-progress" style="width:0%;"></div></div>
     </div>
-    <!-- JOYSTICK -->
     <div id="joystick-container">
       <div id="joystick-knob"></div>
     </div>
