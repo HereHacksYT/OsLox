@@ -1,8 +1,6 @@
-// ===== SOYBET YÖNETİMİ =====
 const Chat = {
   socket: null,
   roomId: null,
-  messages: [],
   
   init(socket, roomId) {
     this.socket = socket;
@@ -20,24 +18,18 @@ const Chat = {
   },
 
   bindEvents() {
-    // Gönder butonu
     this.sendBtn.addEventListener('click', () => this.sendMessage());
     this.input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.sendMessage();
     });
-
-    // Sohbet panelini aç/kapa
     this.toggleBtn.addEventListener('click', () => {
       const isVisible = this.panel.style.display === 'flex';
       this.panel.style.display = isVisible ? 'none' : 'flex';
       if (!isVisible) this.input.focus();
     });
-
-    // Socket olayları
     this.socket.on('chat_history', (history) => {
       history.forEach(msg => this.addMessage(msg));
     });
-
     this.socket.on('new_chat_message', (msg) => {
       this.addMessage(msg);
     });
