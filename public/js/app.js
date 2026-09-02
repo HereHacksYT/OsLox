@@ -33,12 +33,11 @@ function login(username) {
   mainPanel.style.display = 'flex';
   profileUsername.textContent = username;
   profileAvatar.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
-  loadGames();
+  loadGames();  // ← OYUN LİSTESİNİ YÜKLE
   renderFriends();
   socket = io();
   socket.emit('register_user', username);
   
-  // Arkadaş isteklerini dinle
   socket.on('friend_request', ({ from }) => {
     alert(`📨 ${from} size arkadaşlık isteği gönderdi!`);
     showFriendRequest(from);
@@ -57,6 +56,90 @@ function login(username) {
 function showError(msg) {
   loginError.textContent = msg;
   setTimeout(() => loginError.textContent = '', 3000);
+}
+
+// ============================================================
+// SADECE BURASI DEĞİŞTİ - OYUN LİSTESİNİ GÖSTER (İSİM + THUMBNAIL)
+// ============================================================
+async function loadGames() {
+  try {
+    const res = await fetch('/api/games');
+    const games = await res.json();
+    
+    // Oyunları listele - İSİM ve THUMBNAIL göster
+    gameList.innerHTML = games.map(game => `
+      <div class="game-card" data-id="${game.id}">
+        <img src="${game.thumbnail}" alt="${game.name}" 
+             onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22120%22%3E%3Crect width=%22200%22 height=%22120%22 fill=%22%232a2a4a%22/%3E%3Ctext x=%2250%22 y=%2260%22 fill=%22%23aaa%22 font-size=%2220%22%3E${game.name}%3C/text%3E%3C/svg%3E'">
+        <div class="game-info">
+          <h4>${game.name}</h4>  <!-- ← OYUN İSMİ -->
+        </div>
+      </div>
+    `).join('');
+
+    // Tıklayınca oyunu başlat
+    document.querySelectorAll('.game-card').forEach(card => {
+      card.addEventListener('click', () => {
+        startGame(card.dataset.id);
+      });
+    });
+  } catch (e) {
+    console.error('Oyunlar yüklenemedi:', e);
+    gameList.innerHTML = '<p style="color:#ff6b6b;">Oyunlar yüklenemedi!</p>';
+  }
+}
+// ============================================================
+
+// ===== OYUN BAŞLAT (YÜKLEME BARLI) =====
+function startGame(gameId) {
+  mainPanel.style.display = 'none';
+  gameScreen.style.display = 'flex';
+  
+  const overlay = document.getElementById('loading-overlay');
+  const progress = document.getElementById('loading-progress');
+  overlay.style.display = 'flex';
+  progress.style.width = '0%';
+  
+  let p = 0;
+  const interval = setInterval(() => {
+    p += Math.random() * 8 + 2;
+    if (p >= 100) {
+      p = 100;
+      clearInterval(interval);
+      initGame(gameId);
+    }
+    progress.style.width = p + '%';
+  }, 80);
+}
+
+function initGame(gameId) {
+  const container = document.getElementById('game-container');
+  const roomId = gameId + '_' + Date.now();
+  
+  socket.emit('join_room', { roomId, username: currentUser });
+  Chat.init(socket, roomId);
+  
+  gameInstance = new Game3D(container, roomId, socket, currentUser);
+  gameInstance.init();
+  
+  currentRoom = roomId;
+  
+  exitGameBtn.onclick = () => {
+    if (confirm('Oyundan çıkmak istediğinize emin misiniz?')) {
+      exitGame();
+    }
+  };
+}
+
+function exitGame() {
+  if (gameInstance) {
+    gameInstance.destroy();
+    gameInstance = null;
+  }
+  document.getElementById('rotate-warning').style.display = 'none';
+  gameScreen.style.display = 'none';
+  mainPanel.style.display = 'flex';
+  currentRoom = null;
 }
 
 // ===== ARKADAŞ SİSTEMİ =====
@@ -107,85 +190,6 @@ function rejectRequest(from) {
 addFriendBtn.addEventListener('click', sendFriendRequest);
 friendInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendFriendRequest(); });
 
-// ===== OYUN LİSTESİ =====
-async function loadGames() {
-  try {
-    const res = await fetch('/api/games');
-    const games = await res.json();
-    gameList.innerHTML = games.map(game => `
-      <div class="game-card" data-id="${game.id}">
-        <img src="${game.thumbnail}" alt="${game.name}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22120%22%3E%3Crect width=%22200%22 height=%22120%22 fill=%22%232a2a4a%22/%3E%3Ctext x=%2250%22 y=%2260%22 fill=%22%23aaa%22 font-size=%2220%22%3E${game.name}%3C/text%3E%3C/svg%3E'">
-        <div class="game-info">
-          <h4>${game.name}</h4>
-          <p>${game.description}</p>
-        </div>
-      </div>
-    `).join('');
-
-    document.querySelectorAll('.game-card').forEach(card => {
-      card.addEventListener('click', () => {
-        startGame(card.dataset.id);
-      });
-    });
-  } catch (e) {
-    console.error('Oyunlar yüklenemedi:', e);
-  }
-}
-
-// ===== OYUN BAŞLAT =====
-function startGame(gameId) {
-  mainPanel.style.display = 'none';
-  gameScreen.style.display = 'flex';
-  
-  // Yükleme barını göster
-  const overlay = document.getElementById('loading-overlay');
-  const progress = document.getElementById('loading-progress');
-  overlay.style.display = 'flex';
-  progress.style.width = '0%';
-  
-  let p = 0;
-  const interval = setInterval(() => {
-    p += Math.random() * 10 + 2;
-    if (p >= 100) {
-      p = 100;
-      clearInterval(interval);
-      // Oyunu başlat
-      initGame(gameId);
-    }
-    progress.style.width = p + '%';
-  }, 100);
-}
-
-function initGame(gameId) {
-  const container = document.getElementById('game-container');
-  const roomId = gameId + '_' + Date.now();
-  
-  socket.emit('join_room', { roomId, username: currentUser });
-  Chat.init(socket, roomId);
-  
-  gameInstance = new Game3D(container, roomId, socket, currentUser);
-  gameInstance.init();
-  
-  currentRoom = roomId;
-  
-  exitGameBtn.onclick = () => {
-    if (confirm('Oyundan çıkmak istediğinize emin misiniz?')) {
-      exitGame();
-    }
-  };
-}
-
-function exitGame() {
-  if (gameInstance) {
-    gameInstance.destroy();
-    gameInstance = null;
-  }
-  document.getElementById('rotate-warning').style.display = 'none';
-  gameScreen.style.display = 'none';
-  mainPanel.style.display = 'flex';
-  currentRoom = null;
-}
-
 // ===== KARAKTER MODAL =====
 characterBtn.addEventListener('click', () => {
   characterModal.classList.add('active');
@@ -211,13 +215,13 @@ loginUsername.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') login(loginUsername.value);
 });
 
-// Mobil uyarıyı sadece oyun açıkken kontrol et
+// ===== MOBİL UYARI (SADECE OYUN AÇIKKEN) =====
 setInterval(() => {
   const gameOpen = gameScreen.style.display === 'flex';
   const warning = document.getElementById('rotate-warning');
   if (gameOpen && window.innerWidth < 768 && window.innerHeight > window.innerWidth) {
     warning.style.display = 'flex';
-  } else if (gameOpen) {
+  } else {
     warning.style.display = 'none';
   }
 }, 1000);
