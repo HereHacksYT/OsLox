@@ -1,5 +1,5 @@
 {
-  "name": "oslox-3d",
+  "name": "oslox",
   "version": "2.0.0",
   "description": "OsLox 3D Oyun Platformu",
   "main": "server.js",
