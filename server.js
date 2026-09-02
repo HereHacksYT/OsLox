@@ -10,9 +10,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: { origin: "*" }
-});
+const io = socketIo(server, { cors: { origin: "*" } });
 
 // ===== OYUN ODALARI =====
 const rooms = {};
@@ -20,14 +18,13 @@ const rooms = {};
 io.on('connection', (socket) => {
   console.log('🔗 Yeni bağlantı:', socket.id);
 
-  socket.on('join_room', ({ roomId, username, characterId }) => {
+  socket.on('join_room', ({ roomId, username }) => {
     socket.join(roomId);
     if (!rooms[roomId]) {
       rooms[roomId] = { players: {}, messages: [] };
     }
     rooms[roomId].players[socket.id] = {
       username,
-      characterId: characterId || 'knight',
       position: { x: 0, y: 0, z: 0 }
     };
     
@@ -39,7 +36,6 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('player_joined', {
       id: socket.id,
       username,
-      characterId,
       position: { x: 0, y: 0, z: 0 }
     });
     
@@ -66,6 +62,20 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ===== ARKADAŞ İSTEK SİSTEMİ (BASİT) =====
+  socket.on('send_friend_request', ({ from, to }) => {
+    io.to(`user_${to}`).emit('friend_request', { from });
+  });
+
+  socket.on('accept_friend', ({ from, to }) => {
+    io.to(`user_${from}`).emit('friend_accepted', { friend: to });
+    io.to(`user_${to}`).emit('friend_accepted', { friend: from });
+  });
+
+  socket.on('register_user', (username) => {
+    socket.join(`user_${username}`);
+  });
+
   socket.on('disconnect', () => {
     for (const roomId in rooms) {
       if (rooms[roomId].players[socket.id]) {
@@ -89,20 +99,17 @@ app.get('/api/games', (req, res) => {
       id: 'game1', 
       name: 'Savaş Arenası', 
       description: 'Arkadaşlarınla savaş!',
-      thumbnail: '/assets/thumbnails/game1.jpg',
-      scene: 'arena'
+      thumbnail: '/assets/thumbnails/game1.jpg'
     },
     { 
       id: 'game2', 
       name: 'Parkur Yarışı', 
       description: 'Engelleri aş, birinci ol!',
-      thumbnail: '/assets/thumbnails/game2.jpg',
-      scene: 'parkour'
+      thumbnail: '/assets/thumbnails/game2.jpg'
     }
   ]);
 });
 
-// ===== PORT =====
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 OsLox sunucusu ${PORT} portunda çalışıyor`);
