@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -62,7 +61,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ===== ARKADAŞ İSTEK SİSTEMİ (BASİT) =====
   socket.on('send_friend_request', ({ from, to }) => {
     io.to(`user_${to}`).emit('friend_request', { from });
   });
@@ -92,20 +90,25 @@ io.on('connection', (socket) => {
   });
 });
 
-// ===== OYUN LİSTESİ API =====
+// ======================================================
+// SADECE BURASI DEĞİŞTİ - OYUN LİSTESİ (İSİM + THUMBNAIL)
+// ======================================================
 app.get('/api/games', (req, res) => {
   res.json([
     { 
-      id: 'game1', 
-      name: 'Savaş Arenası', 
-      description: 'Arkadaşlarınla savaş!',
-      thumbnail: '/assets/thumbnails/game1.jpg'
+      id: 'oyun1', 
+      name: 'Savaş Arenası',           // ← OYUN İSMİ
+      thumbnail: '/assets/thumbnails/oyun1.jpg'  // ← THUMBNAIL
     },
     { 
-      id: 'game2', 
-      name: 'Parkur Yarışı', 
-      description: 'Engelleri aş, birinci ol!',
-      thumbnail: '/assets/thumbnails/game2.jpg'
+      id: 'oyun2', 
+      name: 'Parkur Yarışı',            // ← OYUN İSMİ
+      thumbnail: '/assets/thumbnails/oyun2.jpg'  // ← THUMBNAIL
+    },
+    { 
+      id: 'oyun3', 
+      name: 'Hayatta Kalma',            // ← OYUN İSMİ
+      thumbnail: '/assets/thumbnails/oyun3.jpg'  // ← THUMBNAIL
     }
   ]);
 });
