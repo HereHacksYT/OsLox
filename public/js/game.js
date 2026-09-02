@@ -1,4 +1,4 @@
-// ===== 3D OYUN MOTORU =====
+// ===== 3D OYUN MOTORU (SADECE BOYUT + ANİMASYON) =====
 class Game3D {
   constructor(container, roomId, socket, username) {
     this.container = container;
@@ -7,12 +7,15 @@ class Game3D {
     this.username = username;
     this.players = {};
     this.character = null;
+    this.characterGroup = null;
     this.scene = null;
     this.camera = null;
     this.renderer = null;
     this.keys = { left: false, right: false, forward: false, backward: false };
     this.isRunning = false;
     this.joystickData = { x: 0, y: 0 };
+    this.isMoving = false;
+    this.walkTime = 0;
   }
 
   init() {
@@ -21,8 +24,8 @@ class Game3D {
     this.scene.background = new THREE.Color(0x87CEEB);
 
     // Kamera
-    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth / this.container.clientHeight, 0.1, 100);
-    this.camera.position.set(0, 12, 18);
+    this.camera = new THREE.PerspectiveCamera(50, this.container.clientWidth / this.container.clientHeight, 0.1, 500);
+    this.camera.position.set(0, 30, 40);
     this.camera.lookAt(0, 0, 0);
 
     // Renderer
@@ -34,13 +37,15 @@ class Game3D {
     // Işık
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-    dirLight.position.set(10, 20, 5);
+    dirLight.position.set(10, 30, 5);
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
-    // ZEMİN
+    // =============================================
+    // HARİTA 5 KAT BÜYÜDÜ (30x30 → 150x150)
+    // =============================================
     const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 30),
+      new THREE.PlaneGeometry(150, 150),
       new THREE.MeshStandardMaterial({ color: 0x2ecc71 })
     );
     ground.rotation.x = -Math.PI / 2;
@@ -48,13 +53,13 @@ class Game3D {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    const grid = new THREE.GridHelper(30, 30, 0xffffff, 0x444444);
+    const grid = new THREE.GridHelper(150, 30, 0xffffff, 0x444444);
     this.scene.add(grid);
 
-    // Dekorasyon
+    // Dekorasyon (haritaya dağılmış)
     this.addDecorations();
 
-    // KARAKTERİ YÜKLE (model.glb)
+    // KARAKTERİ YÜKLE (3 KAT BÜYÜK)
     this.loadCharacter();
 
     // Socket olayları
@@ -75,8 +80,8 @@ class Game3D {
 
     // Hareket gönder
     setInterval(() => {
-      if (this.character) {
-        const pos = this.character.position;
+      if (this.characterGroup) {
+        const pos = this.characterGroup.position;
         this.socket.emit('player_move', {
           roomId: this.roomId,
           position: { x: pos.x, y: pos.y, z: pos.z }
@@ -93,10 +98,8 @@ class Game3D {
 
     window.addEventListener('resize', () => this.onResize());
 
-    // YÜKLEME BİTTİ
     document.getElementById('loading-overlay').style.display = 'none';
     
-    // Mobil uyarıyı göster (sadece oyun açıkken)
     if (window.innerWidth < 768 && window.innerHeight > window.innerWidth) {
       document.getElementById('rotate-warning').style.display = 'flex';
     }
@@ -111,43 +114,83 @@ class Game3D {
     
     loader.load(modelPath, (gltf) => {
       const model = gltf.scene;
-      model.scale.set(0.8, 0.8, 0.8);
+      
+      // =============================================
+      // KARAKTER 3 KAT BÜYÜDÜ (0.8 → 2.4)
+      // =============================================
+      model.scale.set(2.4, 2.4, 2.4);
       model.position.set(0, 0, 0);
       model.castShadow = true;
+      
+      // Animasyonları sakla
+      this.animations = gltf.animations;
+      this.mixer = new THREE.AnimationMixer(model);
+      
+      // Yürüme animasyonunu bul ve oynat
+      if (this.animations && this.animations.length > 0) {
+        this.walkAction = this.mixer.clipAction(this.animations[0]);
+        this.walkAction.play();
+        this.walkAction.paused = true; // Başlangıçta duraklat
+      }
+      
       this.scene.add(model);
-      this.character = model;
+      this.characterGroup = model;
       this.players[this.socket.id] = {
         mesh: model,
         username: this.username,
         position: model.position
       };
+      
     }, undefined, (error) => {
       console.error('Model yüklenemedi:', error);
-      // Yedek küp
+      // Yedek karakter (3 kat büyük küp)
+      const group = new THREE.Group();
       const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(0.8, 1.2, 0.5),
+        new THREE.BoxGeometry(2.4, 3.6, 1.5),
         new THREE.MeshStandardMaterial({ color: 0xe94560 })
       );
-      mesh.position.set(0, 0, 0);
-      this.scene.add(mesh);
-      this.character = mesh;
+      mesh.position.y = 1.8;
+      group.add(mesh);
+      
+      // Baş (3 kat büyük)
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.9, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0xf1c40f })
+      );
+      head.position.y = 4.2;
+      group.add(head);
+      
+      group.position.set(0, 0, 0);
+      this.scene.add(group);
+      this.characterGroup = group;
       this.players[this.socket.id] = {
-        mesh: mesh,
+        mesh: group,
         username: this.username,
-        position: mesh.position
+        position: group.position
       };
     });
   }
 
   addPlayer(id, username, position) {
     if (this.players[id]) return;
+    // Diğer oyuncular da 3 kat büyük
+    const group = new THREE.Group();
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 1.2, 0.5),
+      new THREE.BoxGeometry(2.4, 3.6, 1.5),
       new THREE.MeshStandardMaterial({ color: 0x3498db })
     );
-    mesh.position.set(position.x, position.y, position.z);
-    this.scene.add(mesh);
-    this.players[id] = { mesh, username, position: mesh.position };
+    mesh.position.y = 1.8;
+    group.add(mesh);
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.9, 16, 16),
+      new THREE.MeshStandardMaterial({ color: 0xf1c40f })
+    );
+    head.position.y = 4.2;
+    group.add(head);
+    
+    group.position.set(position.x, position.y, position.z);
+    this.scene.add(group);
+    this.players[id] = { mesh: group, username, position: group.position };
   }
 
   removePlayer(id) {
@@ -158,13 +201,16 @@ class Game3D {
   }
 
   addDecorations() {
-    const colors = [0x8B4513, 0xf1c40f, 0xe74c3c, 0x3498db];
-    for (let i = 0; i < 15; i++) {
-      const x = (Math.random() - 0.5) * 26;
-      const z = (Math.random() - 0.5) * 26;
-      if (Math.abs(x) < 2 && Math.abs(z) < 2) continue;
+    // =============================================
+    // DEKORASYONLAR 5 KAT BÜYÜK HARİTAYA GÖRE
+    // =============================================
+    const colors = [0x8B4513, 0xf1c40f, 0xe74c3c, 0x3498db, 0x9b59b6];
+    for (let i = 0; i < 50; i++) {
+      const x = (Math.random() - 0.5) * 130;
+      const z = (Math.random() - 0.5) * 130;
+      if (Math.abs(x) < 5 && Math.abs(z) < 5) continue;
       const box = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.BoxGeometry(0.8, 0.8, 0.8),
         new THREE.MeshStandardMaterial({ color: colors[i % colors.length] })
       );
       box.position.set(x, 0, z);
@@ -216,25 +262,25 @@ class Game3D {
     }, { passive: false });
 
     setInterval(() => {
-      if (!this.character) return;
+      if (!this.characterGroup) return;
       const threshold = 0.15;
       this.keys.left = this.joystickData.x < -threshold;
-      this.keys.right = this.joystickData.x > threshold;
+      this '.keys.right = this.joystickData.x > threshold;
       this.keys.forward = this.joystickData.y > threshold;
-      this.keys.backward = this.joystickData.y < -threshold;
+      this.keys.backward = thisArrow.joystickData.y < -threshold;
     }, 50);
   }
 
   // ===== KLAVYE =====
-  onKeyDown(e) {
+  onKeyDownRight(e) {
     switch(e.key) {
       case 'ArrowLeft': this.keys.left = true; e.preventDefault(); break;
-      case 'ArrowRight': this.keys.right = true; e.preventDefault(); break;
+      case': this.keys.right = true; e.preventDefault(); break;
       case 'ArrowUp': this.keys.forward = true; e.preventDefault(); break;
       case 'ArrowDown': this.keys.backward = true; e.preventDefault(); break;
       case ' ':
-        if (this.character && this.character.position.y <= 0.1) {
-          this.character.position.y = 0.5;
+        if (this.characterGroup && this.characterGroup.position.y <= 0.1) {
+          this.characterGroup.position.y = 1.5;
         }
         e.preventDefault();
         break;
@@ -251,25 +297,50 @@ class Game3D {
   }
 
   update() {
-    if (!this.character) return;
-    const speed = 0.12;
+    if (!this.characterGroup) return;
+    
+    // =============================================
+    // HAREKET HIZI 5 KAT BÜYÜK HARİTAYA GÖRE
+    // =============================================
+    const speed = 0.5; // 5 kat büyük haritaya göre hız arttı
     let dx = 0, dz = 0;
-    if (this.keys.left) dx = -speed;
-    if (this.keys.right) dx = speed;
-    if (this.keys.forward) dz = -speed;
-    if (this.keys.backward) dz = speed;
+    let isMoving = false;
+    
+    if (this.keys.left) { dx = -speed; isMoving = true; }
+    if (this.keys.right) { dx = speed; isMoving = true; }
+    if (this.keys.forward) { dz = -speed; isMoving = true; }
+    if (this.keys.backward) { dz = speed; isMoving = true; }
+    
     if (dx !== 0 && dz !== 0) { dx *= 0.707; dz *= 0.707; }
-    this.character.position.x += dx;
-    this.character.position.z += dz;
-    if (this.character.position.y > 0) {
-      this.character.position.y -= 0.03;
+    
+    this.characterGroup.position.x += dx;
+    this.characterGroup.position.z += dz;
+    
+    // Yerçekimi
+    if (this.characterGroup.position.y > 0) {
+      this.characterGroup.position.y -= 0.05;
     }
-    if (this.character.position.y < 0) this.character.position.y = 0;
+    if (this.characterGroup.position.y < 0) this.characterGroup.position.y = 0;
 
-    const pos = this.character.position;
+    // =============================================
+    // YÜRÜME ANİMASYONU
+    // =============================================
+    if (this.mixer && this.walkAction) {
+      if (isMoving) {
+        this.walkAction.paused = false;
+        this.walkAction.timeScale = 1.5;
+      } else {
+        this.walkAction.paused = true;
+        this.walkAction.time = 0;
+      }
+      this.mixer.update(0.016);
+    }
+
+    // Kamera takip (5 kat büyük haritaya göre)
+    const pos = this.characterGroup.position;
     this.camera.position.x = pos.x;
-    this.camera.position.z = pos.z + 18;
-    this.camera.position.y = 12;
+    this.camera.position.z = pos.z + 40;
+    this.camera.position.y = 30;
     this.camera.lookAt(pos.x, 0, pos.z);
   }
 
