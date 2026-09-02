@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OsLox - 3D Oyun Platformu</title>
+  <title>OsLox</title>
   <link rel="stylesheet" href="/css/style.css">
-  <!-- Three.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- GLTFLoader (model yükleme) -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-  <!-- Socket.io -->
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 </head>
 <body>
 
-  <!-- ===== MOBİL YATAY UYARI ===== -->
+  <!-- ===== MOBİL YATAY UYARI (SADECE OYUN AÇIKKEN) ===== -->
   <div id="rotate-warning" style="display:none;">
     <div class="warning-content">
       <span class="icon">📱</span>
@@ -26,13 +23,13 @@
   <!-- ===== GİRİŞ EKRANI ===== -->
   <div id="login-screen">
     <h1>OsLox</h1>
-    <input type="text" id="login-username" placeholder="Kullanıcı adınız">
+    <input type="text" id="login-username" placeholder="Kullanıanelcı adınız">
     <button id="login-btn">Giriş Yap</button>
     <div id="login-error"></div>
-  </div>
+ " </div>
 
   <!-- ===== ANA PANEL ===== -->
-  <div id="main-panel">
+  <div id="main-p style="display:none;">
     <div id="top-bar">
       <div class="user-info">
         <img id="profile-avatar" src="https://api.dicebear.com/7.x/avataaars/svg?seed=default">
@@ -51,11 +48,16 @@
       <div class="section">
         <h3>👥 Arkadaşlarım</h3>
         <ul class="friend-list" id="friends-list"></ul>
+        <div style="margin-top:10px;">
+          <input type="text" id="friend-input" placeholder="Arkadaşının adı" style="padding:8px;border-radius:6px;border:none;width:70%;">
+          <button id="add-friend-btn" style="padding:8px 12px;background:#e94560;color:white;border:none;border-radius:6px;">➕</button>
+        </div>
+        <div id="friend-requests" style="margin-top:10px;"></div>
       </div>
     </div>
   </div>
 
-  <!-- ===== OYUN EKRANI (3D) ===== -->
+  <!-- ===== OYUN EKRANI ===== -->
   <div id="game-screen" style="display:none;">
     <div id="game-ui">
       <button id="exit-game-btn">✕ Çık</button>
@@ -69,12 +71,12 @@
       </div>
     </div>
     <div id="game-container"></div>
-    <!-- Yükleme Barı -->
+    <!-- Yükleme (basit) -->
     <div id="loading-overlay">
+      <p>🎮 Oyun yükleniyor...</p>
       <div class="loading-bar"><div id="loading-progress" style="width:0%;"></div></div>
-      <p id="loading-text">Oyun yükleniyor...</p>
     </div>
-    <!-- JOYSTICK (mobil) -->
+    <!-- JOYSTICK -->
     <div id="joystick-container">
       <div id="joystick-knob"></div>
     </div>
@@ -84,8 +86,12 @@
   <div class="modal" id="character-modal">
     <div class="modal-content">
       <h3>👤 Karakter Seç</h3>
+      <p style="color:#aaa;font-size:0.9rem;">Tek bir karakter (model.glb) kullanılıyor</p>
       <div class="character-options" id="character-options">
-        <!-- JS ile doldurulacak -->
+        <div class="char-card selected" data-id="default">
+          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=default" alt="Karakter">
+          <div class="char-name">Varsayılan</div>
+        </div>
       </div>
       <button class="btn-close-modal" id="close-modal-btn">Kapat</button>
     </div>
